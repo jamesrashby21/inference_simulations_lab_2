@@ -1,10 +1,10 @@
 ---
 title: "Inference Simulations"
 subtitle: "PSYC 201A, Simulation Lab 2"
-author: "Your name here"
+author: "James Ashby"
 date: today
 format:
-  html:
+  pdf:
     toc: true
     embed-resources: true
 execute:
@@ -48,7 +48,7 @@ This makes "tea data", a tibble (dataframe) where there are a certain number of 
 
 The averages of the two conditions are separated by a known effect ("delta") with some variance ("sigma"). You can change these around since we're simulating data!
 
-So, here, DELTA is the difference is the tea ratings, on average, between the two conditions, in likert scale points. For simplicity, the scale is from 1-10.
+So, here, DELTA is the difference in the tea ratings, on average, between the two conditions, in likert scale points. For simplicity, the scale is from 1-10.
 
 ```{r}
 make_tea_data <- function(n_total = 48,
@@ -78,7 +78,9 @@ tea_data <- make_tea_data(n_total = 18, delta = .5)
 Now, make a new data frame (call it `tea_data_highn`) with an N of 48, or something higher if you want. You need to call the custom function. Keep the same small effect (`delta = .5`): we come back to this experiment in Parts 2 and 3.
 
 ```{r}
-
+tea_data_highn <- make_tea_data(n_total = 60, delta = .5)
+print(tea_data_highn, n = 60)
+summary(tea_data)
 ```
 
 To do: OK, look at these data. How long are they, what are the column names? Look at them in your console by copy and pasting the variable names into R.
@@ -88,8 +90,17 @@ Call `summary(tea_data)` and look at the outputs. Call `head(tea_data)` to look 
 To do: Write basic tidyverse code to calculate the mean of each condition (hint: use `group_by` and `summarize`).
 
 ```{r}
+by_condition <- tea_data %>%
+  group_by(condition) %>%
+  summarize(mean_rating = mean(rating),
+            num_participants = length(rating))
 
- 
+by_condition_highn <- tea_data_highn %>%
+  group_by(condition) %>%
+  summarize(mean_rating = mean(rating),
+            num_participants = length(rating))
+print(by_condition)
+print(by_condition_highn)
 ```
 
 ## In this first draw, was it significant with N=9 or N=24 per group?
@@ -125,7 +136,9 @@ samps <- tibble(sim = 1:1000) |>
 OK, copy this but now change it so that you 48 participants per experiment
 
 ```{r}
-samps_highn <-...
+samps_highn <- tibble(sim = 1:1000) |> 
+  mutate(data = map(sim, \(i) make_tea_data(n_total = 48, delta = 1.5))) |>  # simulate
+  unnest(cols = data) # wrangle
 ```
 
 ### Summarize both of these simulations
@@ -161,7 +174,7 @@ tea_data_highn_summary <- samps_highn |>
 Let's make a plot to plot the differences in ratings across conditions for the low-n condition. You'll need to use ggplot or `hist`
 
 ```{r}
-
+hist(tea_data_summary$delta)
 ```
 
 ### Plot difference for higher-n
@@ -169,7 +182,7 @@ Let's make a plot to plot the differences in ratings across conditions for the l
 To do: What's different about this distribution vs the one we just plotted?
 
 ```{r}
-
+hist(tea_data_highn_summary$delta)
 ```
 
 **Bonus** What happens if you run it again, but this time try changing the variance / mean of the effect when you change the `delta` and `sigma` values in the data simulation.
@@ -188,13 +201,22 @@ Call the simulated experiments `null_model` and use 18 participants per experime
 
 ```{r}
 # Simulate the null distribution
-  
+null_model <- tibble(sim = 1:1000) |>
+  mutate(data = map(sim, \(i) make_tea_data(n_total = 18, delta = 0))) |>
+  unnest(cols = data)
+
+null_model_summary <- null_model |>
+  group_by(sim, condition) |>
+  summarise(mean_rating = mean(rating)) |>
+  group_by(sim) |>
+  summarise(delta = mean_rating[condition == "milk first"] -
+              mean_rating[condition == "tea first"])
 ```
 
 Visualize what this null distribution actually looks like.
 
 ```{r}
-
+hist(null_model_summary$delta)
 ```
 
 ### Method 2: Shuffling
@@ -482,7 +504,9 @@ How often did we fail to reject the null hypothesis? When was our p-value greate
 
 ```{r}
 # you'll need all_results_high_n$pvalue
+hist(all_results_high_n$pvalue)
 
+mean(all_results_high_n$pvalue < .05)
 ```
 
 # Part 5: Power curves
@@ -506,8 +530,8 @@ Check your function: `estimate_power(48, 1.5)` should be close to 1 minus the mi
 
 ```{r}
 estimate_power <- function(n_total, delta, n_sims = 500) {
-  # your code here
-  
+  p_values <- map_dbl(1:n_sims, \(i) run_one_experiment(n_total, delta))
+  mean(p_values < .05)
 }
 
 estimate_power(n_total = 48, delta = 1.5)
@@ -525,15 +549,29 @@ power_curve <- expand_grid(n_total = seq(10, 100, by = 10), # total participants
 To do: Plot the power curves: `n_total` on the x-axis, `power` on the y-axis, and one line per `delta` (hint: `color = factor(delta)`). Add a dashed horizontal line at .8, the conventional target for power (hint: `geom_hline()`).
 
 ```{r}
-
+ggplot(power_curve, aes(x = n_total, y = power, color = factor(delta))) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = .8, linetype = "dashed") + 
+  geom_hline(yintercept = .05, linetype = "dotted") + 
+  labs(x = "total participants (n_total)",
+       y = "power (proportion of experiments with p < .05)",
+       color = "delta") +
+  theme_classic()
 ```
 
 To do: Answer these questions.
 
 1.  What is "power" when delta = 0? Why doesn't it go up with more participants?
+    The purpose of measuring power despite the delta being 0 (meaning there is no effect to detect), is to measure the false positive rate. Therefore, the chance of detecting an effect, despite there being none, which hovers around .05: which is what we want.
+    
 2.  About how many participants do you need for 80% power when delta = 1? When delta = 0.5?
+    For 80% power when delta = 1, we need around 60 participants; for 80% power when delta = 0.5, we would need (theoretically) around 160 participants (assuming the trend of the line continues as the amount of participants rises)
+    
 3.  In Part 1, `tea_data` had 18 participants and a true effect of delta = 0.5. About what was its power? If that one experiment had come out significant, how much would you trust it?
-
+    Its power should hover around 15%. I would not trust that experiment very much, as in our simulation, only about 15% of experiments with that large of a sample would have a p-value of < .05, leading to a very high liklihood of spurious results.
+    
+    
 **Bonus** Extend `n_total` until delta = 0.5 reaches 80% power. How many participants does it take?
 
 # Exercises

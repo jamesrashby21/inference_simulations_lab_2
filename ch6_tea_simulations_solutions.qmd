@@ -166,6 +166,8 @@ hist(tea_data_summary$delta)
 
 To do: What's different about this distribution vs the one we just plotted?
 
+The 'highn' dataset has higher precision in the way that is graphed, and appears far more normal than the first plot.
+
 ```{r}
 hist(tea_data_highn_summary$delta)
 ```
